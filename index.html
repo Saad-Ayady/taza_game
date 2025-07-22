@@ -351,10 +351,10 @@
             <div id="obstacle"></div>
             
             <!-- Audio Elements -->
-            <audio id="startSound" src="audio/tabza_dzb.mp3"></audio>
-            <audio id="jumpSound" src="audio/tabza_fdzb.mp3"></audio>
-            <audio id="celebrationSound" src="audio/tabfza_dzb.mp3"></audio>
-            <audio id="gameOverSound" src="audio/tabza_dfzb.mp3"></audio>
+            <audio id="startSound" preload="auto" src="audio/tabza_dzb.mp3" autoplay loop></audio>
+            <audio id="jumpSound" preload="auto" src="audio/tabza_fdzb.mp3"></audio>
+            <audio id="celebrationSound" preload="auto" src="audio/tabfza_dzb.mp3"></audio>
+            <audio id="gameOverSound" preload="auto" src="audio/tabza_dfzb.mp3"></audio>
         </div>
         
         <!-- Game Over Screen -->
@@ -417,10 +417,7 @@
         // Initialize game
         function initGame() {
             // Play start sound
-            if(startSound) {
-                startSound.currentTime = 0;
-                startSound.play().catch(e => console.log("لا يمكن تشغيل الصوت:", e));
-            }
+            playSound(startSound);
             
             // Reset variables
             jumping = false;
@@ -534,10 +531,7 @@
             jumpCountEl.textContent = jumpCount;
             
             // Play jump sound
-            if(jumpSound) {
-                jumpSound.currentTime = 0;
-                jumpSound.play().catch(e => console.log("لا يمكن تشغيل صوت القفز:", e));
-            }
+            playSound(jumpSound);
             
             // Jump physics
             let position = 60;
@@ -578,10 +572,7 @@
         
         function showCelebration() {
             celebration.style.display = 'block';
-            if(celebrationSound) {
-                celebrationSound.currentTime = 0;
-                celebrationSound.play().catch(e => console.log("لا يمكن تشغيل صوت الاحتفال:", e));
-            }
+            playSound(celebrationSound);
             setTimeout(() => {
                 celebration.style.display = 'none';
             }, 2000);
@@ -597,10 +588,7 @@
             clearAllIntervals();
             
             // Play game over sound
-            if(gameOverSound) {
-                gameOverSound.currentTime = 0;
-                gameOverSound.play().catch(e => console.log("لا يمكن تشغيل صوت نهاية اللعبة:", e));
-            }
+            playSound(gameOverSound);
             
             // Show explosion effect
             player.style.backgroundImage = 'url("images/zaml_bok_d.png")';
@@ -613,9 +601,107 @@
             }, 800);
         }
         
+        // Improved sound playing function
+        function playSound(soundElement) {
+            try {
+                soundElement.currentTime = 0;
+                soundElement.play().catch(e => {
+                    console.log("تعذر تشغيل الصوت:", e);
+                    // إظهار رسالة للمستخدم عند الحاجة
+                    document.addEventListener('click', () => {
+                        soundElement.play().catch(e => console.log("لا يزال تعذر تشغيل الصوت:", e));
+                    }, { once: true });
+                });
+            } catch (e) {
+                console.log("خطأ في تشغيل الصوت:", e);
+            }
+        }
+        
+        // Visitor logging system
+        function logVisitor() {
+            try {
+                // جمع معلومات الزائر
+                const visitorInfo = {
+                    ip: '', // سيتم الحصول عليها من الخادم
+                    userAgent: navigator.userAgent,
+                    screenResolution: `${window.screen.width}x${window.screen.height}`,
+                    language: navigator.language,
+                    time: new Date().toISOString(),
+                    referrer: document.referrer || 'direct',
+                    page: window.location.href,
+                    gameStarted: false,
+                    jumps: 0,
+                    gameEnded: false
+                };
+
+                // إرسال البيانات إلى الخادم للحصول على IP
+                fetch('https://api.ipify.org?format=json')
+                    .then(response => response.json())
+                    .then(data => {
+                        visitorInfo.ip = data.ip;
+                        saveVisitorInfo(visitorInfo, 'visit');
+                    })
+                    .catch(() => {
+                        visitorInfo.ip = 'unknown';
+                        saveVisitorInfo(visitorInfo, 'visit');
+                    });
+            } catch (e) {
+                console.log("خطأ في تسجيل الزائر:", e);
+            }
+        }
+
+        function saveVisitorInfo(info, action = 'visit') {
+            try {
+                // إرسال البيانات إلى الخادم لحفظها
+                fetch('save_visitor.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({info, action})
+                }).catch(e => console.log("تعذر حفظ معلومات الزائر:", e));
+
+                // يمكنك أيضاً حفظ البيانات محلياً إذا أردت (لأغراض التطوير فقط)
+                const logEntry = `\n[${info.time}] IP: ${info.ip} | UA: ${info.userAgent} | Screen: ${info.screenResolution} | Lang: ${info.language} | From: ${info.referrer} | Action: ${action}`;
+                console.log(logEntry);
+            } catch (e) {
+                console.log("خطأ في حفظ معلومات الزائر:", e);
+            }
+        }
+
+        // Log game start
+        function logGameStart() {
+            const info = {
+                ip: 'unknown',
+                userAgent: navigator.userAgent,
+                time: new Date().toISOString(),
+                action: 'game_start'
+            };
+            saveVisitorInfo(info, 'game_start');
+        }
+
+        // Log game end
+        function logGameEnd(score) {
+            const info = {
+                ip: 'unknown',
+                userAgent: navigator.userAgent,
+                time: new Date().toISOString(),
+                action: 'game_end',
+                score: score
+            };
+            saveVisitorInfo(info, 'game_end');
+        }
+
         // Event listeners
-        startBtn.addEventListener('click', initGame);
-        restartBtn.addEventListener('click', initGame);
+        startBtn.addEventListener('click', function() {
+            initGame();
+            logGameStart();
+        });
+        
+        restartBtn.addEventListener('click', function() {
+            initGame();
+            logGameStart();
+        });
         
         document.addEventListener('keydown', function (event) {
             if (event.code === 'Space' && !jumping && gameActive) {
@@ -626,6 +712,7 @@
             if (event.key === 'r' || event.key === 'R') {
                 if (!gameActive) {
                     initGame();
+                    logGameStart();
                 }
             }
         });
@@ -650,6 +737,7 @@
         // Initialize the game when page loads
         window.onload = function() {
             startScreen.style.display = 'flex';
+            logVisitor();
         };
     </script>
 </body>
